@@ -13,23 +13,25 @@ if (Sys.info()[[4]] == "LTLAB-DEV")
 refresh_rate <- 3
 last_db_update_time <- 0
 update_count <- 0
+current_conveyor_ids <- NA
+current_project <- "No production"
+last_project <- "Noname"
+current_conveyor <- data.frame()
 
 
 # choosing between real or testing tracedata file names
 #tracedata_DB_name <- "//M85399/1_m85399/tracedata.db3"
 tracedata_DB_name <- "tracedata.db3"
 
-ltlab_smt_db <- "LTLAB_SMT_DB.sqlite"
 
-current_project <- NULL
-last_project <- "Noname"
-current_conveyor <- data.frame()
+ltlab_smt_db <- "LTLAB_SMT_DB.sqlite"
 
 conn_status <- list(AX_DB_TBL = "NOT_OK",
                     SMT_DB = "NOT_OK",
                     SMT_PROJ = "NOT_OK",
                     PP_DATA = "NOT_OK")
 last_status <- data.frame()
+
 
 # functions saves current connectios status to csv file
 status_to_csv <- function(date = 0) {
@@ -49,7 +51,9 @@ status_to_csv <- function(date = 0) {
     write.csv(data, "status.csv", row.names = FALSE)
   }
 }
+
 status_to_csv(date = Sys.time())
+
 
 # conveyorIDlist - list of the previous IDs in production, if some of them 
 # changes it means they are finished and are writen to finished roduction 
@@ -119,16 +123,29 @@ PCBfinishedtoCSV <- function(idlist) {
 
 # next section needs to be looped forever -------------------------------------
 while (TRUE) {
+
 Sys.sleep(refresh_rate)
 print("-----------------------------------------------------")
 
 system.time({
 
 # checking if tracedata DB from production exists
-if(file.exists(tracedata_DB_name)) {
-  conn_status$AX_DB_TBL <- "OK"
-  tracedata_DB <- src_sqlite(tracedata_DB_name)
-  print("AX_DB_TBL - OK")
+if (file.exists(tracedata_DB_name)) {
+  if (conn_status$AX_DB_TBL == "NOT_OK") {
+    tryCatch({
+      tracedata_DB <- src_sqlite(tracedata_DB_name)
+    }, error = function(e) {
+      print("DB is not available")
+      conn_status$AX_DB_TBL <- "NOT_OK"
+      status_to_csv(date = Sys.time())
+      e
+    }
+    ) -> tracedata_DB_tryCatch
+    if(inherits(tracedata_DB_tryCatch, "error")) next()
+    
+    conn_status$AX_DB_TBL <- "OK"
+    print("AX_DB_TBL - OK")    
+  }
 } else {
   conn_status$AX_DB_TBL <- "NOT_OK"
   status_to_csv(date = Sys.time())
@@ -156,27 +173,31 @@ if (last_db_update_time == 0) {
                print("DB is busy 1")
                conn_status$AX_DB_TBL <- "NOT_OK"
                status_to_csv(date = Sys.time())
-               next()
+               e
              }
-  )
+  ) -> transportmap_tryCatch
+  if(inherits(transportmap_tryCatch, "error")) next()
 }
 
 
 # checking if local SMT DB  exists
 if(file.exists(ltlab_smt_db)) {
-  tryCatch({
-    smt_DB <- src_sqlite(ltlab_smt_db)
-    projects <- tbl(smt_DB, sql("SELECT * FROM PROJEKTAI"))
-    all_projects_names <- projects %>% select(PROJEKTAS)
-    conn_status$SMT_DB <- "OK"
-    print("SMT_DB - OK")
-  }, error = function(e) {
-               print("SMT DB is busy")
-               conn_status$SMT_DB <- "NOT_OK"
-               status_to_csv(date = Sys.time())
-               next()
-             }
-  )
+  if (conn_status$SMT_DB == "NOT_OK") {
+    tryCatch({
+      smt_DB <- src_sqlite(ltlab_smt_db)
+      projects <- tbl(smt_DB, sql("SELECT * FROM PROJEKTAI"))
+      all_projects_names <- projects %>% select(PROJEKTAS)
+      conn_status$SMT_DB <- "OK"
+      print("SMT_DB - OK")
+    }, error = function(e) {
+      print("SMT DB is busy")
+      conn_status$SMT_DB <- "NOT_OK"
+      status_to_csv(date = Sys.time())
+      e
+    }
+    ) -> smt_DB_tryCatch
+    if(inherits(smt_DB_tryCatch, "error")) next()
+  }
 } else {
   conn_status$SMT_DB <- "NOT_OK"
   status_to_csv(date = Sys.time())
@@ -265,9 +286,10 @@ tryCatch({
              print("DB is busy 2")
              conn_status$AX_DB_TBL <- "NOT_OK"
              status_to_csv(date = Sys.time())
-             next()
+             e
            }
-)
+) -> current_conveyor_tryCatch
+if(inherits(current_conveyor_tryCatch, "error")) next()
 
 
 if (last_project != current_project) {
@@ -361,11 +383,13 @@ if (last_project != current_project) {
 
     last_project <- current_project
   }, error = function(e) {
-    print("SMT DB is busy 2")
-    conn_status$SMT_PROJ <- "NOT_OK"
-    status_to_csv(date = Sys.time())
-    next()
-  })  
+               print("SMT DB is busy 2")
+               conn_status$SMT_PROJ <- "NOT_OK"
+               status_to_csv(date = Sys.time())
+               e
+             }
+  ) -> smt_DB_2_tryCatch
+  if(inherits(smt_DB_2_tryCatch, "error")) next()
 }
 
 PCBfinished()
