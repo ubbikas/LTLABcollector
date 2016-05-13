@@ -1,6 +1,7 @@
 # loading required libraries
 suppressPackageStartupMessages(require(dplyr))
 suppressPackageStartupMessages(require(xml2))
+suppressPackageStartupMessages(require(methods))
 
 
 if (Sys.info()[[4]] == "ANDRIUS-PC")
@@ -10,7 +11,7 @@ if (Sys.info()[[4]] == "LTLAB-DEV")
   setwd("C:/R/GitHub/LTLABcollector")
 
 
-refresh_rate <- 3
+refresh_rate <- 5
 last_db_update_time <- 0
 update_count <- 0
 current_conveyor_ids <- NA
@@ -171,6 +172,7 @@ if (last_db_update_time == 0) {
     }
   }, error = function(e) {
                print("DB is busy 1")
+               print(e)
                conn_status$AX_DB_TBL <- "NOT_OK"
                status_to_csv(date = Sys.time())
                e
@@ -191,6 +193,7 @@ if(file.exists(ltlab_smt_db)) {
       print("SMT_DB - OK")
     }, error = function(e) {
       print("SMT DB is busy")
+      print(e)
       conn_status$SMT_DB <- "NOT_OK"
       status_to_csv(date = Sys.time())
       e
