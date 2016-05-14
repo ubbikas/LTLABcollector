@@ -5,10 +5,10 @@ suppressPackageStartupMessages(require(methods))
 
 
 if (Sys.info()[[4]] == "ANDRIUS-PC")
-  setwd("D:/-=Works=-/R/GitHub/LTLABcollector")
+  setwd("D:/-=Works=-/R/GitHub/LTLABview")
 
 if (Sys.info()[[4]] == "LTLAB-DEV")
-  setwd("C:/R/GitHub/LTLABcollector")
+  setwd("C:/R/GitHub/LTLABview")
 
 
 refresh_rate <- 5
